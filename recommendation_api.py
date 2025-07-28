@@ -8,14 +8,13 @@ from recommendtion.recommendations.core.recommendation_engine import Recommendat
 
 app = FastAPI(title="Room Recommendation API")
 
-# Initialize recommendation engine
 config = RecommendationConfig()
 engine = RecommendationEngine(config=config)
 
 
 class RecommendationRequest(BaseModel):
     user_id: str
-    room_id: Optional[str] = None  # Optional preferred room
+    room_id: Optional[str] = None  
     start_time: datetime
     end_time: datetime
     purpose: str
@@ -26,7 +25,6 @@ class RecommendationRequest(BaseModel):
 @app.post("/recommend")
 def get_recommendation(request: RecommendationRequest):
     try:
-        # Format request for engine
         request_data = request.dict()
         recommendations = engine.get_recommendations(request_data)
         
