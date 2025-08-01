@@ -13,7 +13,6 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 class CacheKeyType(Enum):
@@ -36,9 +35,9 @@ class CacheConfig:
     max_connections: int = 10
     timeout: float = 30.0
     check_same_thread: bool = False
-    isolation_level: Optional[str] = None  # For autocommit mode
+    isolation_level: Optional[str] = None  
     
-    # TTL settings (in seconds)
+    # TTL settings 
     default_ttl: int = 3600  # 1 hour
     user_preferences_ttl: int = 86400  # 24 hours
     room_similarities_ttl: int = 43200  # 12 hours
@@ -69,7 +68,6 @@ class CacheManager:
         """Get thread-local database connection"""
         if not hasattr(self._local, 'connection'):
             try:
-                # Ensure directory exists
                 db_path = Path(self.config.database_path)
                 db_path.parent.mkdir(parents=True, exist_ok=True)
                 
@@ -80,7 +78,6 @@ class CacheManager:
                     isolation_level=self.config.isolation_level
                 )
                 
-                # Enable WAL mode for better concurrency
                 self._local.connection.execute("PRAGMA journal_mode=WAL")
                 self._local.connection.execute("PRAGMA synchronous=NORMAL")
                 self._local.connection.execute("PRAGMA cache_size=10000")
@@ -112,7 +109,6 @@ class CacheManager:
                 )
             """)
             
-            # Create indexes for better performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_key_type ON cache_entries(key_type)
             """)
@@ -158,17 +154,14 @@ class CacheManager:
         """
         key_parts = [key_type.value]
         
-        # Add positional arguments
         for arg in args:
             if isinstance(arg, (dict, list)):
-                # Create hash for complex objects
                 arg_str = json.dumps(arg, sort_keys=True)
                 arg_hash = hashlib.md5(arg_str.encode()).hexdigest()[:8]
                 key_parts.append(arg_hash)
             else:
                 key_parts.append(str(arg))
         
-        # Add keyword arguments
         if kwargs:
             kwargs_str = json.dumps(kwargs, sort_keys=True)
             kwargs_hash = hashlib.md5(kwargs_str.encode()).hexdigest()[:8]
@@ -330,7 +323,6 @@ class CacheManager:
                 conn = self._get_connection()
                 cursor = conn.cursor()
                 
-                # Get entry and check if not expired
                 cursor.execute("""
                     SELECT value_data, value_type, expires_at 
                     FROM cache_entries 
@@ -344,7 +336,6 @@ class CacheManager:
                 
                 value_data, value_type, expires_at = result
                 
-                # Update access statistics
                 cursor.execute("""
                     UPDATE cache_entries 
                     SET access_count = access_count + 1, last_accessed = CURRENT_TIMESTAMP
@@ -353,7 +344,6 @@ class CacheManager:
                 
                 conn.commit()
                 
-                # Deserialize and return value
                 return self._deserialize_value(value_data, value_type)
                         
         except Exception as e:
@@ -410,13 +400,11 @@ class CacheManager:
                 cache_key = self._generate_cache_key(key_type, *args, **kwargs)
                 
                 with self._lock:
-                    # Get current value
                     current_value = self.get(key_type, 0, *args, **kwargs)
                     
                     if not isinstance(current_value, (int, float)):
                         current_value = 0
                     
-                    # Increment and set new value
                     new_value = int(current_value) + amount
                     
                     if self.set(key_type, new_value, None, *args, **kwargs):
@@ -438,7 +426,6 @@ class CacheManager:
                 conn = self._get_connection()
                 cursor = conn.cursor()
                 
-                # Prepare batch insert
                 batch_data = []
                 for suffix, value in mapping.items():
                     cache_key = self._generate_cache_key(key_type, suffix)
@@ -696,7 +683,6 @@ class RecommendationCacheManager(CacheManager):
         
         return total_deleted
 
-# Global cache manager instance
 _cache_manager_instance = None
 
 def get_cache_manager(config: CacheConfig = None) -> RecommendationCacheManager:

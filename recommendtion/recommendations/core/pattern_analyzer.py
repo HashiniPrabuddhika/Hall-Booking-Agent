@@ -70,7 +70,6 @@ class PatternAnalyzer:
                 'analysis_date': datetime.now().isoformat()
             }
             
-            # Cache the results
             self.patterns_cache[cache_key] = patterns
             
             logger.info(f"Analyzed patterns for user {user_id}: {len(booking_history)} bookings")

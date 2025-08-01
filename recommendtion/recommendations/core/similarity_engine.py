@@ -48,7 +48,6 @@ class RoomProfile:
     area_name: str
     description: str
     
-    # Calculated features
     usage_frequency: float
     average_booking_duration: float
     peak_usage_hours: List[int]
@@ -56,7 +55,6 @@ class RoomProfile:
     booking_purposes: List[str]
     utilization_rate: float
     
-    # Feature vectors
     feature_vector: List[float]
     usage_vector: List[float]
 
@@ -86,8 +84,7 @@ class SimilarityEngine:
         self.db = db
         self.cache_manager = cache_manager
         self.time_utils = TimeUtils()
-        
-        # Similarity weights
+       
         self.room_similarity_weights = {
             'capacity': 0.25,
             'area': 0.15,
@@ -103,7 +100,6 @@ class SimilarityEngine:
             'usage_patterns': 0.25
         }
         
-        # Cache TTL
         self.cache_ttl = 3600  # 1 hour
     
     def calculate_room_similarity(self, room1_id: int, room2_id: int, 
@@ -120,13 +116,11 @@ class SimilarityEngine:
             Similarity score with breakdown
         """
         try:
-            # Check cache first
             cache_key = f"room_similarity:{min(room1_id, room2_id)}:{max(room1_id, room2_id)}"
             cached_score = self.cache_manager.get(cache_key)
             if cached_score:
                 return cached_score
             
-            # Get room profiles
             room1_profile = self._get_room_profile(room1_id)
             room2_profile = self._get_room_profile(room2_id)
             
@@ -141,14 +135,12 @@ class SimilarityEngine:
                     calculated_at=datetime.now()
                 )
             
-            # Calculate different similarity components
             capacity_similarity = self._calculate_capacity_similarity(room1_profile, room2_profile)
             area_similarity = self._calculate_area_similarity(room1_profile, room2_profile)
             feature_similarity = self._calculate_feature_similarity(room1_profile, room2_profile)
             usage_similarity = self._calculate_usage_similarity(room1_profile, room2_profile)
             user_similarity = self._calculate_user_overlap_similarity(room1_profile, room2_profile)
             
-            # Weighted combination
             factors = {
                 'capacity': capacity_similarity,
                 'area': area_similarity,
@@ -175,7 +167,6 @@ class SimilarityEngine:
                 calculated_at=datetime.now()
             )
             
-            # Cache the result
             self.cache_manager.set(cache_key, similarity_score, ttl=self.cache_ttl)
             
             return similarity_score
@@ -209,11 +200,9 @@ class SimilarityEngine:
             Similarity score with breakdown
         """
         try:
-            # Get time slot profiles
             profile1 = self._get_time_slot_profile(time1, duration1)
             profile2 = self._get_time_slot_profile(time2, duration2)
             
-            # Calculate similarity components
             hour_similarity = self._calculate_hour_proximity(time1, time2)
             day_similarity = self._calculate_day_similarity(time1, time2)
             duration_similarity = self._calculate_duration_similarity(duration1, duration2)
@@ -271,7 +260,6 @@ class SimilarityEngine:
             List of similar rooms sorted by similarity score
         """
         try:
-            # Get all active rooms except the target
             rooms = self.db.query(MRBSRoom).filter(
                 and_(
                     MRBSRoom.disabled == False,
@@ -287,7 +275,6 @@ class SimilarityEngine:
                 if similarity.similarity_score >= min_similarity:
                     similar_rooms.append(similarity)
             
-            # Sort by similarity score descending
             similar_rooms.sort(key=lambda x: x.similarity_score, reverse=True)
             
             return similar_rooms[:limit]
@@ -316,11 +303,9 @@ class SimilarityEngine:
         try:
             similar_slots = []
             
-            # Generate candidate time slots within search window
             start_search = target_time - timedelta(hours=search_window_hours // 2)
             end_search = target_time + timedelta(hours=search_window_hours // 2)
             
-            # Generate hourly slots within the window
             current_time = start_search.replace(minute=0, second=0, microsecond=0)
             
             while current_time <= end_search:
@@ -334,7 +319,6 @@ class SimilarityEngine:
                 
                 current_time += timedelta(hours=1)
             
-            # Sort by similarity score descending
             similar_slots.sort(key=lambda x: x.similarity_score, reverse=True)
             
             return similar_slots[:limit]
@@ -355,7 +339,6 @@ class SimilarityEngine:
             User similarity score
         """
         try:
-            # Get booking histories
             user1_bookings = self._get_user_booking_history(user1_id)
             user2_bookings = self._get_user_booking_history(user2_id)
             
@@ -370,7 +353,6 @@ class SimilarityEngine:
                     calculated_at=datetime.now()
                 )
             
-            # Calculate similarity components
             room_preference_similarity = self._calculate_room_preference_similarity(
                 user1_bookings, user2_bookings
             )
@@ -395,7 +377,7 @@ class SimilarityEngine:
             total_score = sum(factors.values()) / len(factors)
             
             confidence = min(
-                len(user1_bookings) / 20.0,  # More bookings = higher confidence
+                len(user1_bookings) / 20.0,  
                 len(user2_bookings) / 20.0,
                 1.0
             )
@@ -425,13 +407,11 @@ class SimilarityEngine:
     def _get_room_profile(self, room_id: int) -> Optional[RoomProfile]:
         """Get comprehensive room profile with usage statistics"""
         try:
-            # Check cache first
             cache_key = f"room_profile:{room_id}"
             cached_profile = self.cache_manager.get(cache_key)
             if cached_profile:
                 return cached_profile
             
-            # Get room basic info
             room = self.db.query(MRBSRoom).filter(MRBSRoom.id == room_id).first()
             if not room:
                 return None
@@ -451,12 +431,10 @@ class SimilarityEngine:
                 )
             ).all()
             
-            # Calculate usage statistics
             usage_frequency = len(bookings)
             total_hours = sum((b.end_time - b.start_time) / 3600 for b in bookings)
             avg_duration = total_hours / len(bookings) if bookings else 0.0
             
-            # Calculate peak usage hours
             hour_counts = Counter()
             common_users = set()
             booking_purposes = []
@@ -470,11 +448,9 @@ class SimilarityEngine:
             
             peak_hours = [hour for hour, count in hour_counts.most_common(3)]
             
-            # Calculate utilization rate (assuming 12 working hours per day)
-            total_possible_hours = 180 * 12  # 6 months * 30 days * 12 hours
+            total_possible_hours = 180 * 12 
             utilization_rate = total_hours / total_possible_hours if total_possible_hours > 0 else 0.0
             
-            # Extract features from description
             features = self._extract_room_features(room.description or "")
             feature_vector = self._create_feature_vector(room, features)
             usage_vector = self._create_usage_vector(bookings)
@@ -496,7 +472,6 @@ class SimilarityEngine:
                 usage_vector=usage_vector
             )
             
-            # Cache the profile
             self.cache_manager.set(cache_key, profile, ttl=self.cache_ttl)
             
             return profile
@@ -512,7 +487,6 @@ class SimilarityEngine:
             end_hour = (time.hour + int(duration)) % 24
             day_of_week = time.weekday()
             
-            # Get similar time slots from history for pattern analysis
             similar_slots = self.db.query(MRBSEntry).filter(
                 and_(
                     func.extract('hour', func.from_unixtime(MRBSEntry.start_time)) == start_hour,
@@ -526,10 +500,8 @@ class SimilarityEngine:
             typical_users = set(booking.create_by for booking in similar_slots)
             common_purposes = [booking.name for booking in similar_slots if booking.name]
             
-            # Calculate conflict probability (simplified)
             conflict_probability = min(popularity_score * 1.5, 1.0)
             
-            # Seasonal usage (simplified - could be enhanced)
             seasonal_usage = {'spring': 0.25, 'summer': 0.25, 'fall': 0.25, 'winter': 0.25}
             
             return TimeSlotProfile(
@@ -561,9 +533,8 @@ class SimilarityEngine:
     def _calculate_capacity_similarity(self, room1: RoomProfile, room2: RoomProfile) -> float:
         """Calculate similarity based on room capacity"""
         if room1.capacity == 0 or room2.capacity == 0:
-            return 0.5  # Neutral score for unknown capacity
+            return 0.5  
         
-        # Normalize capacities to similar ranges
         max_capacity = max(room1.capacity, room2.capacity)
         min_capacity = min(room1.capacity, room2.capacity)
         
@@ -572,7 +543,6 @@ class SimilarityEngine:
         
         ratio = min_capacity / max_capacity
         
-        # Apply sigmoid function to make score more meaningful
         return 2 / (1 + math.exp(-4 * ratio)) - 1
     
     def _calculate_area_similarity(self, room1: RoomProfile, room2: RoomProfile) -> float:
@@ -580,14 +550,13 @@ class SimilarityEngine:
         if room1.area_id == room2.area_id:
             return 1.0
         else:
-            return 0.0  # Could be enhanced with area proximity data
+            return 0.0  
     
     def _calculate_feature_similarity(self, room1: RoomProfile, room2: RoomProfile) -> float:
         """Calculate similarity based on room features"""
         if not room1.feature_vector or not room2.feature_vector:
-            return 0.5  # Neutral score if no feature data
+            return 0.5  
         
-        # Cosine similarity between feature vectors
         return self._cosine_similarity(room1.feature_vector, room2.feature_vector)
     
     def _calculate_usage_similarity(self, room1: RoomProfile, room2: RoomProfile) -> float:
@@ -610,10 +579,9 @@ class SimilarityEngine:
     def _calculate_hour_proximity(self, time1: datetime, time2: datetime) -> float:
         """Calculate similarity based on hour proximity"""
         hour_diff = abs(time1.hour - time2.hour)
-        # Handle wraparound (e.g., 23 and 1 are close)
         hour_diff = min(hour_diff, 24 - hour_diff)
         
-        # Normalize to 0-1 scale (closer hours = higher similarity)
+
         return max(0, 1 - hour_diff / 12.0)
     
     def _calculate_day_similarity(self, time1: datetime, time2: datetime) -> float:
@@ -628,7 +596,7 @@ class SimilarityEngine:
         if weekdays1 == weekdays2:
             return 0.5  # Same type of day (weekday or weekend)
         else:
-            return 0.2  # Different types
+            return 0.2  
     
     def _calculate_duration_similarity(self, duration1: float, duration2: float) -> float:
         """Calculate similarity based on booking duration"""
@@ -661,7 +629,6 @@ class SimilarityEngine:
         features = []
         description_lower = description.lower()
         
-        # Common room features
         feature_keywords = {
             'projector': ['projector', 'projection'],
             'whiteboard': ['whiteboard', 'board'],
@@ -683,7 +650,7 @@ class SimilarityEngine:
     
     def _create_feature_vector(self, room: MRBSRoom, features: List[str]) -> List[float]:
         """Create feature vector for room"""
-        # Feature dimensions
+       
         feature_dims = [
             'projector', 'whiteboard', 'tv', 'ac', 'wifi', 
             'video_conference', 'phone', 'windows', 'kitchen', 'parking'
@@ -691,12 +658,11 @@ class SimilarityEngine:
         
         vector = []
         
-        # Binary features
         for dim in feature_dims:
             vector.append(1.0 if dim in features else 0.0)
         
-        # Capacity (normalized)
-        vector.append(min(room.capacity / 50.0, 1.0))  # Normalize to 0-1
+       
+        vector.append(min(room.capacity / 50.0, 1.0))  
         
         return vector
     
@@ -705,7 +671,7 @@ class SimilarityEngine:
         if not bookings:
             return [0.0] * 10
         
-        # Hour distribution (0-23 mapped to 24 dimensions, then averaged to 8)
+        # Hour distribution 
         hour_counts = [0] * 24
         for booking in bookings:
             hour = datetime.fromtimestamp(booking.start_time).hour
@@ -731,7 +697,7 @@ class SimilarityEngine:
         # Add duration distribution
         durations = [(b.end_time - b.start_time) / 3600 for b in bookings]
         avg_duration = sum(durations) / len(durations) if durations else 0.0
-        vector.append(min(avg_duration / 8.0, 1.0))  # Normalize duration
+        vector.append(min(avg_duration / 8.0, 1.0))  
         
         # Add frequency score
         vector.append(min(len(bookings) / 100.0, 1.0))  # Normalize frequency
@@ -845,7 +811,7 @@ class SimilarityEngine:
         range1 = max(range1, 1)
         range2 = max(range2, 1)
         
-        freq1 = len(bookings1) * 7 / range1  # bookings per week
+        freq1 = len(bookings1) * 7 / range1  
         freq2 = len(bookings2) * 7 / range2
         
         # Calculate similarity
@@ -919,12 +885,12 @@ class SimilarityEngine:
             
             for i, room1_id in enumerate(room_ids):
                 for j, room2_id in enumerate(room_ids):
-                    if i < j:  # Only calculate upper triangle
+                    if i < j:  
                         similarity = self.calculate_room_similarity(room1_id, room2_id)
                         similarity_matrix[(room1_id, room2_id)] = similarity.similarity_score
                         similarity_matrix[(room2_id, room1_id)] = similarity.similarity_score
                     elif i == j:
-                        similarity_matrix[(room1_id, room2_id)] = 1.0  # Self-similarity
+                        similarity_matrix[(room1_id, room2_id)] = 1.0  
             
             return similarity_matrix
             
@@ -945,12 +911,10 @@ class SimilarityEngine:
             ID of the best alternative room, or None if none found
         """
         try:
-            # Get user preferences if available
             user_id = booking_context.get('user_id')
             start_time = booking_context.get('start_time')
             duration = booking_context.get('duration', 1.0)
             
-            # Find similar rooms
             similar_rooms = self.find_similar_rooms(
                 original_room_id, 
                 limit=20, 
@@ -961,16 +925,13 @@ class SimilarityEngine:
             if not similar_rooms:
                 return None
             
-            # Score alternatives based on similarity and other factors
             scored_alternatives = []
             
             for similarity_score in similar_rooms:
                 room_id = similarity_score.entity2_id
                 
-                # Base score from similarity
                 score = similarity_score.similarity_score
                 
-                # Adjust score based on additional factors
                 if booking_context.get('prefer_same_area', False):
                     original_room = self.db.query(MRBSRoom).filter(
                         MRBSRoom.id == original_room_id
@@ -981,9 +942,8 @@ class SimilarityEngine:
                     
                     if (original_room and alternative_room and 
                         original_room.area_id == alternative_room.area_id):
-                        score *= 1.2  # Boost same area
+                        score *= 1.2  
                 
-                # Consider user's historical preference for this room
                 if user_id:
                     user_bookings = self.db.query(MRBSEntry).filter(
                         and_(
@@ -993,11 +953,10 @@ class SimilarityEngine:
                     ).count()
                     
                     if user_bookings > 0:
-                        score *= 1.1  # Slight boost for familiar rooms
+                        score *= 1.1  
                 
                 scored_alternatives.append((room_id, score))
             
-            # Sort by score and return the best
             scored_alternatives.sort(key=lambda x: x[1], reverse=True)
             
             return scored_alternatives[0][0] if scored_alternatives else None
@@ -1021,7 +980,6 @@ class SimilarityEngine:
         try:
             factors = {}
             
-            # Room similarity
             if 'room_id' in booking1 and 'room_id' in booking2:
                 room_sim = self.calculate_room_similarity(
                     booking1['room_id'], booking2['room_id']

@@ -1,7 +1,7 @@
  .\venv\Scripts\activate
  uvicorn main:app --reload    
  pip install -r requirements.txt
-
+python -m spacy download en_core_web_sm
  
 # data/README.md
 # Data Storage System

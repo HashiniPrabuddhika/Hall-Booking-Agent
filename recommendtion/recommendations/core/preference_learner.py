@@ -10,7 +10,6 @@ from enum import Enum
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
-# Optional imports with fallbacks
 try:
     from ..models.embedding_model import EmbeddingModel
 except ImportError:
@@ -38,7 +37,7 @@ except ImportError:
 try:
     from src.models import MRBSEntry, MRBSRoom, MRBSRepeat
 except ImportError:
-    # Mock models for when tables don't exist
+    
     class MRBSEntry:
         def __init__(self):
             self.create_by = None
@@ -126,7 +125,6 @@ class PreferenceLearner:
     def _check_tables_exist(self) -> bool:
         """Check if required database tables exist"""
         try:
-            # Try to query one of the main tables
             self.db.query(MRBSEntry).limit(1).all()
             return True
         except Exception as e:
@@ -146,12 +144,10 @@ class PreferenceLearner:
             Complete user profile with learned preferences
         """
         try:
-            # Check cache first
             cached_profile = self._get_cached_profile(user_id)
             if cached_profile and self._is_profile_fresh(cached_profile):
                 return cached_profile
             
-            # If tables don't exist, return mock profile
             if not self.tables_exist:
                 return self._get_mock_profile(user_id)
             
@@ -275,19 +271,14 @@ class PreferenceLearner:
             # Learn time slot preferences
             self._learn_time_preferences(bookings, preferences)
             
-            # Learn room type preferences
             self._learn_room_preferences(bookings, preferences)
             
-            # Learn duration preferences
             self._learn_duration_preferences(bookings, preferences)
             
-            # Learn capacity preferences
             self._learn_capacity_preferences(bookings, preferences)
             
-            # Learn feature preferences
             self._learn_feature_preferences(bookings, preferences)
             
-            # Learn recurrence preferences
             self._learn_recurrence_preferences(bookings, preferences)
             
         except Exception as e:
@@ -335,7 +326,7 @@ class PreferenceLearner:
         
         for hour, count in hour_counts.most_common():
             score = count / total_bookings
-            confidence = min(score * 2, 1.0)  # Boost confidence for frequent patterns
+            confidence = min(score * 2, 1.0)  
             
             if score > 0.1:  # Only include significant preferences
                 preferences[PreferenceType.TIME_SLOT].append(
@@ -380,7 +371,6 @@ class PreferenceLearner:
                 if room:
                     room_usage[room.id] += 1
                     
-                    # Categorize room type based on capacity
                     capacity = getattr(room, 'capacity', 10)
                     if capacity <= 5:
                         room_type = "small"

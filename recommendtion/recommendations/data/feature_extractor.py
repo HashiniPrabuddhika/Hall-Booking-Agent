@@ -17,7 +17,6 @@ class FeatureExtractor:
         self.user_features_cache = {}
         self.room_features_cache = {}
         
-        # Define feature categories
         self.time_slots = self._generate_time_slots()
         self.equipment_types = [
             'projector', 'whiteboard', 'tv', 'microphone', 'camera',
@@ -45,7 +44,6 @@ class FeatureExtractor:
         try:
             user_id = user_data.get('user_id') or user_data.get('id')
             
-            # Check cache
             if user_id in self.user_features_cache:
                 return self.user_features_cache[user_id]
             
@@ -59,10 +57,8 @@ class FeatureExtractor:
                 'usage_patterns': self._extract_usage_patterns(booking_history or [])
             }
             
-            # Create feature vector
             features['feature_vector'] = self._create_user_feature_vector(features)
             
-            # Cache results
             self.user_features_cache[user_id] = features
             
             logger.info(f"Extracted features for user {user_id}")
@@ -104,14 +100,11 @@ class FeatureExtractor:
         if not booking_history:
             return self._get_default_behavioral_features()
         
-        # Calculate booking patterns
         total_bookings = len(booking_history)
         
-        # Room preferences
         room_counts = Counter(booking.get('room_id') for booking in booking_history)
         most_used_rooms = [room_id for room_id, _ in room_counts.most_common(5)]
         
-        # Duration patterns
         durations = []
         for booking in booking_history:
             start_time = datetime.fromisoformat(booking.get('start_time', ''))
@@ -122,7 +115,6 @@ class FeatureExtractor:
         avg_duration = np.mean(durations) if durations else 60
         std_duration = np.std(durations) if len(durations) > 1 else 0
         
-        # Advance booking patterns
         advance_days = []
         for booking in booking_history:
             booking_time = datetime.fromisoformat(booking.get('booking_time', ''))

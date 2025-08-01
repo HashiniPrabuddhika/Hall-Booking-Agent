@@ -206,11 +206,16 @@
 # src/api.py
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from datetime import datetime
 from src.deepseek_llm import DeepSeekLLM
 from src.database import get_db
 from src.availability_logic import check_availability, add_booking, check_available_slotes
 from src.entity_extraction import extract_entities
 from recommendtion.recommendations.core.recommendation_engine import RecommendationEngine
+from recommendtion.config.recommendation_config import RecommendationConfig
+from .availability_logic import handle_unavailable_room, get_smart_recommendations
+
 import json
 import re
 import logging
@@ -224,6 +229,16 @@ router = APIRouter()
 class QuestionRequest(BaseModel):
     session_id: str
     question: str
+    
+class RecommendationRequest(BaseModel):
+    user_id: str
+    room_id: Optional[str] = None
+    start_time: datetime
+    end_time: datetime
+    purpose: str
+    capacity: int
+    requirements: Optional[Dict[str, Any]] = None
+
 
 def get_missing_params(params: dict, required_fields: list[str]) -> list[str]:
     """Get list of missing required parameters"""
@@ -414,6 +429,41 @@ Respond in **only JSON format**, without explanations.
             "error_details": str(e) if logger.level == logging.DEBUG else None
         }
 
+
+
+@router.post("/recommend")
+async def get_recommendation(request: RecommendationRequest, db=Depends(get_db)):
+    """
+    Direct recommendation endpoint for structured recommendation requests
+    """
+    try:
+        config = RecommendationConfig()
+        engine = RecommendationEngine(db=db, config=config)
+        
+        request_data = request.dict()
+        
+        recommendations = engine.get_recommendations(request_data)
+        
+        return {
+            "status": "success",
+            "count": len(recommendations) if recommendations else 0,
+            "recommendations": recommendations or [],
+            "request_details": {
+                "user_id": request.user_id,
+                "purpose": request.purpose,
+                "capacity": request.capacity,
+                "time_range": f"{request.start_time} - {request.end_time}"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in get_recommendation: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to generate recommendations: {str(e)}"
+        )
+        
+        
 async def handle_check_availability(params: dict, db, user_id: str) -> dict:
     """Handle availability checking with recommendations"""
     try:
@@ -423,40 +473,33 @@ async def handle_check_availability(params: dict, db, user_id: str) -> dict:
             start_time=params["start_time"],
             end_time=params["end_time"],
             db=db,
+            user_id=user_id or "anonymous_user"
         )
+        
+        logger.info(f"Availability response: {availability_result}")
+
         
         # If unavailable, add intelligent recommendations
         if availability_result["status"] == "unavailable":
+            unavailable_response = await handle_unavailable_room(
+                params=params,
+                db=db,
+                user_id=user_id,
+                base_message=availability_result.get("message", "Room is not available."),
+                request_type="check_availability"
+            )
+                
+            return {
+                **availability_result,
+                **unavailable_response
+            }
+            
+        elif availability_result["status"] == "available":
+            # Room is available - provide proactive suggestions
             try:
-                rec_engine = RecommendationEngine(db)
-                recommendations = await rec_engine.get_recommendations(
-                    user_id=user_id,
-                    request_type="comprehensive",
-                    context={
-                        **params,
-                        "original_request": "check_availability",
-                        "failure_reason": "room_unavailable"
-                    }
-                )
+                config = RecommendationConfig()
+                rec_engine = RecommendationEngine(db=db, config=config)
                 
-                availability_result["recommendations"] = recommendations
-                availability_result["message"] = f"{availability_result.get('message', '')} Here are some alternatives:"
-                
-                # Learn from this unavailability to improve future suggestions
-                await rec_engine.learn_from_booking(
-                    user_id=user_id,
-                    booking_data=params,
-                    outcome="unavailable"
-                )
-                
-            except Exception as e:
-                logger.error(f"Recommendation generation failed: {e}")
-                # Don't fail the main request if recommendations fail
-                availability_result["recommendations"] = []
-        else:
-            # Room is available - still provide proactive suggestions for future
-            try:
-                rec_engine = RecommendationEngine(db)
                 proactive_suggestions = await rec_engine.get_proactive_suggestions(
                     user_id=user_id,
                     context=params
@@ -464,7 +507,9 @@ async def handle_check_availability(params: dict, db, user_id: str) -> dict:
                 
                 if proactive_suggestions:
                     availability_result["future_suggestions"] = proactive_suggestions[:3]
-                    availability_result["message"] = f"{availability_result.get('message', '')} Room is available! You might also be interested in these future bookings."
+                    availability_result["message"] = f"{availability_result.get('message', '')} ✅ Room is available! You might also be interested in these future bookings."
+                    availability_result["proactive_help"] = "Based on your booking patterns, here are some suggestions for future bookings."
+                    
             except Exception as e:
                 logger.error(f"Proactive suggestions failed: {e}")
         
@@ -473,9 +518,17 @@ async def handle_check_availability(params: dict, db, user_id: str) -> dict:
     except Exception as e:
         logger.error(f"Error in handle_check_availability: {str(e)}")
         return {
-            "status": "error",
-            "message": "Failed to check availability. Please try again."
+            "status": "check_failed",
+            "message": "We encountered an issue while checking availability. Let us find alternatives for you!",
+            **(await handle_unavailable_room(
+                params=params,
+                db=db,
+                user_id=user_id,
+                base_message="Availability check failed, but here are some options:",
+                request_type="check_availability_error"
+            ))
         }
+
 
 async def handle_add_booking(params: dict, db, user_id: str) -> dict:
     """Handle booking creation with intelligent fallbacks"""
@@ -487,84 +540,98 @@ async def handle_add_booking(params: dict, db, user_id: str) -> dict:
             start_time=params["start_time"],
             end_time=params["end_time"],
             db=db,
+            user_id=user_id
         )
         logger.info(f"Availability response: {availability}")
 
         if availability["status"] != "available":
-            # Provide intelligent recommendations for alternative options
-            try:
-                rec_engine = RecommendationEngine(db)
-                recommendations = await rec_engine.get_recommendations(
-                    user_id=user_id,
-                    request_type="comprehensive",
-                    context={
-                        **params,
-                        "original_request": "add_booking",
-                        "failure_reason": "room_unavailable"
-                    }
-                )
-                
-                # Learn from this failed booking attempt
-                await rec_engine.learn_from_booking(
-                    user_id=user_id,
-                    booking_data=params,
-                    outcome="failed_unavailable"
-                )
-                
-                return {
-                    "status": "unavailable",
-                    "message": f"{params['room_name']} is NOT available on {params['date']} from {params['start_time']} to {params['end_time']}. Here are some alternatives:",
-                    "recommendations": recommendations,
-                    "alternative_action": "Would you like me to book one of these alternatives for you?"
-                }
-            except Exception as e:
-                logger.error(f"Recommendation generation failed: {e}")
-                return {
-                    "status": "unavailable",
-                    "message": f"{params['room_name']} is NOT available on {params['date']} from {params['start_time']} to {params['end_time']}."
-                }
+            return await handle_unavailable_room(
+                params=params,
+                db=db,
+                user_id=user_id,
+                base_message=f"Sorry, {params['room_name']} is not available on {params['date']} from {params['start_time']} to {params['end_time']}.",
+                request_type="add_booking"
+            )
 
         # Room is available - proceed with booking
-        booking_result = add_booking(
-            room_name=params["room_name"],
-            date=params["date"],
-            start_time=params["start_time"],
-            end_time=params["end_time"],
-            created_by=params.get("created_by", user_id),
-            db=db,
-        )
-        
-        # Learn from successful booking to improve future recommendations
-        if booking_result.get("status") == "success":
-            try:
-                rec_engine = RecommendationEngine(db)
-                await rec_engine.learn_from_booking(
-                    user_id=user_id,
-                    booking_data=params,
-                    outcome="success"
-                )
-                
-                # Provide proactive suggestions for future bookings
-                future_suggestions = await rec_engine.get_proactive_suggestions(
-                    user_id=user_id,
-                    context={**params, "recent_booking": params}
-                )
-                
-                if future_suggestions:
-                    booking_result["future_suggestions"] = future_suggestions[:3]
-                    booking_result["message"] = f"{booking_result.get('message', '')} Booking confirmed! You might also want to consider these future bookings."
+        try:
+            booking_result = await add_booking(
+                room_name=params["room_name"],
+                date=params["date"],
+                start_time=params["start_time"],
+                end_time=params["end_time"],
+                created_by=params.get("created_by", user_id),
+                db=db,
+                user_id=user_id
+            )
+            
+            # Learn from successful booking and provide future suggestions
+            if booking_result.get("status") == "success":
+                try:
+                    config = RecommendationConfig()
+                    rec_engine = RecommendationEngine(db=db, config=config)
                     
-            except Exception as e:
-                logger.error(f"Learning from booking failed: {e}")
-        
-        return booking_result
+                    # Learn from success
+                    await rec_engine.learn_from_booking(
+                        user_id=user_id,
+                        booking_data=params,
+                        outcome="success"
+                    )
+                    
+                    # Get future suggestions
+                    future_suggestions = await rec_engine.get_proactive_suggestions(
+                        user_id=user_id,
+                        context={**params, "recent_booking": params}
+                    )
+                    
+                    if future_suggestions:
+                        booking_result["future_suggestions"] = future_suggestions[:3]
+                        booking_result["message"] = f"🎉 {booking_result.get('message', '')} Booking confirmed! Here are some suggestions for your next booking:"
+                        booking_result["success_enhancement"] = "We're learning your preferences to make future bookings even easier!"
+                        
+                except Exception as e:
+                    logger.error(f"Learning from booking failed: {e}")
+            
+            return booking_result
+            
+        except Exception as booking_error:
+            logger.error(f"Booking creation failed: {booking_error}")
+            
+            # If booking fails due to technical issues, still provide recommendations
+            return {
+                "status": "booking_failed",
+                "message": "We encountered a technical issue while creating your booking, but here are some alternatives:",
+                **(await get_smart_recommendations(
+                    params=params,
+                    db=db,
+                    user_id=user_id,
+                    request_type="add_booking",
+                    failure_reason="technical_error"
+                )),
+                "error_type": "technical_error",
+                "suggested_action": "Please try booking one of the recommended alternatives, or try your original request again in a few moments.",
+                "original_request": params
+            }
         
     except Exception as e:
         logger.error(f"Error in handle_add_booking: {str(e)}")
+        
+        # Even in case of unexpected errors, try to provide some help
         return {
-            "status": "error",
-            "message": "Failed to create booking. Please try again."
+            "status": "booking_failed", 
+            "message": "We're having trouble processing your booking right now, but we found some great alternatives for you!",
+            **(await get_smart_recommendations(
+                params=params,
+                db=db,
+                user_id=user_id,
+                request_type="add_booking",
+                failure_reason="unexpected_error"
+            )),
+            "suggested_action": "Choose one of these available options, or try your original request again in a few moments.",
+            "help_text": "If you continue having issues, our support team is here to help.",
+            "error_details": str(e) if logger.level == logging.DEBUG else None
         }
+        
 
 async def handle_alternatives(params: dict, db, user_id: str) -> dict:
     """Handle alternative suggestions with AI recommendations"""

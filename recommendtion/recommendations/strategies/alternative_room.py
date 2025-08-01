@@ -156,10 +156,10 @@ class AlternativeRoomStrategy:
             if capacity_diff == 0:
                 confidence = 0.9
                 reason = 'Same capacity'
-            elif capacity_diff <= target_capacity * 0.2:  # Within 20%
+            elif capacity_diff <= target_capacity * 0.2:  
                 confidence = 0.8
                 reason = 'Similar capacity'
-            elif capacity_diff <= target_capacity * 0.5:  # Within 50%
+            elif capacity_diff <= target_capacity * 0.5:  
                 confidence = 0.6
                 reason = 'Comparable capacity'
             else:

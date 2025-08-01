@@ -27,13 +27,11 @@ class EmbeddingModel:
         logger.info(f"Initializing EmbeddingModel with model: {model_name}")
         
         try:
-            # Try to use the new langchain-huggingface package first
             try:
                 from langchain_huggingface import HuggingFaceEmbeddings
                 self.embeddings = HuggingFaceEmbeddings(model_name=model_name)
                 logger.info("Using new langchain-huggingface package")
             except ImportError:
-                # Fallback to old package with warning suppression
                 import warnings
                 warnings.filterwarnings('ignore', category=DeprecationWarning)
                 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -45,12 +43,10 @@ class EmbeddingModel:
             
         except Exception as e:
             logger.error(f"Failed to load embedding model: {e}")
-            # Use fallback embedding method
             self.embeddings = None
             self.model_name = "fallback"
             logger.warning("Using fallback embedding method")
         
-        # Ensure persist directory exists
         os.makedirs(persist_directory, exist_ok=True)
         self.persist_directory = persist_directory
         
@@ -109,7 +105,6 @@ class EmbeddingModel:
             
             embedding = self._get_embedding(room_description)
             
-            # Ensure we have a valid embedding
             if embedding is not None and embedding.size > 0:
                 logger.debug(f"Generated room embedding with dimension: {len(embedding)}")
                 return embedding
@@ -138,7 +133,6 @@ class EmbeddingModel:
             
             embedding = self._get_embedding(user_preferences)
             
-            # Ensure we have a valid embedding
             if embedding is not None and embedding.size > 0:
                 logger.debug(f"Generated user embedding with dimension: {len(embedding)}")
                 return embedding
@@ -189,7 +183,6 @@ class EmbeddingModel:
             numpy array of room embedding
         """
         try:
-            # Extract room features with defaults
             name = room_data.get('name', 'Unknown Room')
             capacity = room_data.get('capacity', 0)
             description = room_data.get('description', '')

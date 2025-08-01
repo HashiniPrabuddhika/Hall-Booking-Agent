@@ -16,7 +16,7 @@ class AnalyticsProcessor:
     
     def __init__(self, db: Session):
         self.db = db
-        self._cache = {}  # Simple in-memory cache
+        self._cache = {}  
         self._cache_ttl = {}
     
     async def get_user_booking_patterns(self, user_id: str) -> Dict[str, Any]:
@@ -27,7 +27,6 @@ class AnalyticsProcessor:
         if self._is_cached_valid(cache_key):
             return self._cache[cache_key]
         
-        # Get user's booking history
         user_bookings = self.db.query(MRBSEntry).filter(
             MRBSEntry.create_by == user_id
         ).order_by(MRBSEntry.start_time.desc()).limit(100).all()
@@ -97,7 +96,7 @@ class AnalyticsProcessor:
             booking_date = datetime.fromtimestamp(booking.start_time)
             weekdays.append(booking_date.weekday())
             
-            # Advance booking analysis (if timestamp available)
+            # Advance booking analysis
             if hasattr(booking, 'timestamp') and booking.timestamp:
                 booking_created = booking.timestamp
                 advance_days = (booking_date - booking_created).days
@@ -166,7 +165,7 @@ class AnalyticsProcessor:
                 weekly_intervals = []
                 for i in range(1, len(dates)):
                     interval = (dates[i] - dates[i-1]).days
-                    if 6 <= interval <= 8:  # Weekly (allowing some variance)
+                    if 6 <= interval <= 8:  # Weekly 
                         weekly_intervals.append(interval)
                 
                 if len(weekly_intervals) >= 2:
@@ -421,11 +420,11 @@ class AnalyticsProcessor:
                 time_room_stats[time_slot]['rooms'].add(room.room_name)
                 time_room_stats[time_slot]['avg_duration'].append(duration)
         
-        # Calculate optimal times
+
         optimal_times = []
         for time_slot, stats in time_room_stats.items():
             if stats['bookings'] > 0:
-                popularity = stats['bookings'] / 30  # Average per day
+                popularity = stats['bookings'] / 30  
                 room_variety = len(stats['rooms'])
                 avg_duration = np.mean(stats['avg_duration'])
                 
@@ -520,7 +519,7 @@ class AnalyticsProcessor:
     
     def _analyze_conflicts(self, room_id: int) -> Dict[str, Any]:
         """Analyze booking conflicts for a room"""
-        # Get overlapping bookings (shouldn't exist but good to check)
+        # Get overlapping bookings 
         overlapping = self.db.query(MRBSEntry).filter(
             MRBSEntry.room_id == room_id
         ).all()
@@ -559,8 +558,7 @@ class AnalyticsProcessor:
     
     async def update_user_preferences(self, user_id: str, booking_data: Dict[str, Any]):
         """Update user preferences based on successful booking"""
-        # This would update user preference models
-        # For now, we'll invalidate the cache to force refresh
+
         cache_key = f"user_patterns_{user_id}"
         if cache_key in self._cache:
             del self._cache[cache_key]

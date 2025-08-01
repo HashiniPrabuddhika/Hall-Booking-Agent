@@ -11,7 +11,6 @@ import hashlib
 import json
 import asyncio
 
-# Try to import required modules with fallbacks
 try:
     from langchain_community.embeddings import HuggingFaceEmbeddings
 except ImportError:
@@ -34,11 +33,8 @@ from ..utils.cache_manager import CacheManager
 from ..utils.metrics import RecommendationMetrics
 from .preference_learner import PreferenceLearner
 from ...config.recommendation_config import RecommendationConfig, DatabaseManager
-
-# Import your models
 from src.models import MRBSRoom, MRBSEntry, MRBSRepeat
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 class RecommendationEngine:
@@ -59,21 +55,17 @@ class RecommendationEngine:
         
         self.config = config or RecommendationConfig()
         
-        # Initialize database manager for multiple database connections
         try:
             self.db_manager = DatabaseManager(self.config)
             
-            # Use provided session or create new one from config
             if db:
                 self.db = db
             else:
                 self.db = self.db_manager.get_main_session()
             
-            # Get cache session for analytics and caching
             self.cache_db = self.db_manager.get_cache_engine()
         except Exception as e:
             logger.warning(f"Could not initialize database manager: {e}")
-            # Fallback to simple database session
             self.db = db
             self.db_manager = None
             self.cache_db = None
@@ -92,8 +84,7 @@ class RecommendationEngine:
             "alternative_time", "alternative_room", "proactive", 
             "smart_scheduling", "comprehensive"
         }
-        
-        # Verify MySQL database connection and tables
+
         try:
             self._verify_database_connection()
         except Exception as e:
@@ -101,21 +92,18 @@ class RecommendationEngine:
     
     def _initialize_components(self):
         """Initialize core components with proper error handling"""
-        # Initialize AnalyticsProcessor
         try:
             self.analytics = AnalyticsProcessor(self.db)
         except Exception as e:
             logger.warning(f"Could not initialize AnalyticsProcessor: {e}")
             self.analytics = None
             
-        # Initialize CacheManager
         try:
             self.cache = CacheManager()
         except Exception as e:
             logger.warning(f"Could not initialize CacheManager: {e}")
             self.cache = None
-            
-        # Initialize RecommendationMetrics
+
         try:
             self.metrics = RecommendationMetrics()
         except Exception as e:
@@ -127,7 +115,7 @@ class RecommendationEngine:
             if self.db:
                 self.preference_learner = PreferenceLearner(
                     db=self.db,
-                    embedding_model=None,  # Will be set later if available
+                    embedding_model=None,  
                     cache_manager=self.cache
                 )
             else:
@@ -170,30 +158,22 @@ class RecommendationEngine:
     def _initialize_smart_scheduling_strategy(self):
         """Initialize SmartSchedulingStrategy with comprehensive error handling"""
         try:
-            # First, check if we're in an async context and handle accordingly
             try:
-                # Try to get the current event loop
                 loop = asyncio.get_running_loop()
                 logger.info("Running in async context, initializing SmartSchedulingStrategy carefully")
             except RuntimeError:
-                # No running event loop, safe to proceed normally
                 logger.info("No running event loop, initializing SmartSchedulingStrategy normally")
             
-            # Try different constructor signatures
             try:
-                # Try with both parameters
                 return SmartSchedulingStrategy(self.db, db_session=self.db)
             except TypeError:
                 try:
-                    # Try with just the database parameter
                     return SmartSchedulingStrategy(self.db)
                 except TypeError:
                     try:
-                        # Try with keyword argument only
                         return SmartSchedulingStrategy(db_session=self.db)
                     except TypeError:
                         try:
-                            # Try without any database parameter (fallback mode)
                             logger.warning("Initializing SmartSchedulingStrategy without database connection")
                             return SmartSchedulingStrategy()
                         except Exception as e:
@@ -216,7 +196,6 @@ class RecommendationEngine:
             self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
             logger.info(f"Initialized embeddings with model: {embedding_model}")
             
-            # Update PreferenceLearner with embeddings if available
             if self.preference_learner and hasattr(self.preference_learner, 'embedding_model'):
                 self.preference_learner.embedding_model = self.embeddings
                 
@@ -245,10 +224,8 @@ class RecommendationEngine:
             
             logger.info(f"Generating recommendations for user {user_id}")
             
-            # Create recommendations using actual database data
             recommendations = []
             
-            # Try each recommendation type with proper error handling
             try:
                 alt_time_recs = self._get_alternative_time_recommendations_from_db(request_data)
                 recommendations.extend(alt_time_recs)
@@ -273,7 +250,6 @@ class RecommendationEngine:
             except Exception as e:
                 logger.warning(f"Smart scheduling recommendations failed: {e}")
             
-            # If no recommendations were generated, create fallback recommendations
             if not recommendations:
                 logger.info("No recommendations generated, creating fallback recommendations")
                 recommendations = self._create_fallback_recommendations(request_data)
@@ -295,7 +271,6 @@ class RecommendationEngine:
             start_time_str = request_data.get('start_time', '')
             end_time_str = request_data.get('end_time', '')
             
-            # Parse the datetime strings
             try:
                 if 'T' in start_time_str:
                     start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
@@ -333,7 +308,6 @@ class RecommendationEngine:
             ]
             
             for alt_start, alt_end, description in time_alternatives:
-                # Check if this time slot is available
                 alt_start_ts = int(alt_start.timestamp())
                 alt_end_ts = int(alt_end.timestamp())
                 
@@ -341,7 +315,7 @@ class RecommendationEngine:
                     MRBSEntry.room_id == room.id,
                     MRBSEntry.start_time < alt_end_ts,
                     MRBSEntry.end_time > alt_start_ts,
-                    MRBSEntry.status == 0  # Assuming 0 is active status
+                    MRBSEntry.status == 0  
                 ).count()
                 
                 if conflicts == 0:
@@ -387,7 +361,6 @@ class RecommendationEngine:
             end_time_str = request_data.get('end_time', '')
             capacity_required = request_data.get('capacity', 1)
             
-            # Parse the datetime strings
             try:
                 if 'T' in start_time_str:
                     start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
@@ -449,7 +422,6 @@ class RecommendationEngine:
                         elif capacity_diff <= 2:
                             score += 0.1
                         
-                        # Same area bonus (if area_id exists and matches)
                         if hasattr(room, 'area_id') and hasattr(original_room, 'area_id'):
                             if room.area_id == original_room.area_id:
                                 score += 0.1
@@ -491,7 +463,6 @@ class RecommendationEngine:
             start_time_str = request_data.get('start_time', '')
             end_time_str = request_data.get('end_time', '')
             
-            # Parse the datetime strings
             try:
                 if 'T' in start_time_str:
                     start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
@@ -637,7 +608,6 @@ class RecommendationEngine:
             start_time_str = request_data.get('start_time', '')
             end_time_str = request_data.get('end_time', '')
             
-            # Parse the datetime strings
             try:
                 if 'T' in start_time_str:
                     start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
@@ -797,13 +767,10 @@ class RecommendationEngine:
             return
             
         try:
-            # Test basic MySQL connection
             self.db.execute(text("SELECT 1")).fetchone()
             logger.info("✓ MySQL database connection successful")
             
-            # Check if required tables exist using your models
             try:
-                # Test each table
                 room_count = self.db.query(MRBSRoom).filter(MRBSRoom.disabled == False).count()
                 logger.info(f"✓ Found {room_count} active rooms in mrbs_room table")
                 
@@ -819,7 +786,6 @@ class RecommendationEngine:
             except Exception as e:
                 logger.warning(f"Could not query tables: {e}")
             
-            # Test recent bookings query
             try:
                 recent_bookings = self.db.query(MRBSEntry).filter(
                     MRBSEntry.start_time >= int((datetime.now() - timedelta(days=7)).timestamp())
@@ -831,7 +797,6 @@ class RecommendationEngine:
             
         except Exception as e:
             logger.warning(f"Database verification failed: {e}")
-            # Don't raise exception - allow engine to work in mock mode
     
     def get_room_data_from_db(self, room_name: str = None) -> List[Dict[str, Any]]:
         """
@@ -857,7 +822,6 @@ class RecommendationEngine:
             
             rooms = query.all()
             
-            # Convert to list of dictionaries
             room_data = []
             for room in rooms:
                 room_data.append({
@@ -944,11 +908,9 @@ class RecommendationEngine:
             return []
         
         try:
-            # Calculate start timestamp
             start_date = datetime.now() - timedelta(days=days)
             start_timestamp = int(start_date.timestamp())
             
-            # Query user's bookings with room information
             bookings = self.db.query(
                 MRBSEntry,
                 MRBSRoom.room_name,
@@ -964,7 +926,6 @@ class RecommendationEngine:
                 MRBSEntry.start_time.desc()
             ).all()
             
-            # Convert to list of dictionaries
             booking_history = []
             for entry, room_name, capacity, description in bookings:
                 booking_history.append({
@@ -1003,7 +964,6 @@ class RecommendationEngine:
             return {}
         
         try:
-            # Calculate start timestamp
             start_date = datetime.now() - timedelta(days=days)
             start_timestamp = int(start_date.timestamp())
             
@@ -1032,7 +992,7 @@ class RecommendationEngine:
             results = query.all()
             
             utilization_stats = {}
-            total_possible_hours = days * 24  # Simplified calculation
+            total_possible_hours = days * 24  
             
             for result in results:
                 room_name_result = result.room_name
@@ -1075,7 +1035,6 @@ class RecommendationEngine:
         try:
             self.db.execute(text("SELECT 1")).fetchone()
             
-            # Get database statistics using your models
             try:
                 room_count = self.db.query(MRBSRoom).filter(MRBSRoom.disabled == False).count()
                 recent_bookings = self.db.query(MRBSEntry).filter(
@@ -1125,7 +1084,6 @@ class RecommendationEngine:
             logger.error(f"Error closing database connections: {e}")
 
 
-# Usage example and factory for easy initialization
 class RecommendationEngineFactory:
     """Factory class to easily create RecommendationEngine instances"""
     
@@ -1150,7 +1108,6 @@ class RecommendationEngineFactory:
                 logger.warning(f"Could not create config from factory: {e}")
                 config = RecommendationConfig()
         
-        # Ensure directories exist
         try:
             config.ensure_directories()
         except Exception as e:
@@ -1181,7 +1138,6 @@ class RecommendationEngineFactory:
         return RecommendationEngineFactory.create_engine(environment='testing')
 
 
-# Additional utility functions for better error handling and debugging
 def create_recommendation_engine_with_fallback(db: Session = None, 
                                              config: RecommendationConfig = None,
                                              fallback_to_mock: bool = True) -> RecommendationEngine:
@@ -1207,7 +1163,6 @@ def create_recommendation_engine_with_fallback(db: Session = None,
                 # Create minimal config for fallback
                 fallback_config = RecommendationConfig() if config is None else config
                 
-                # Try without database connection
                 return RecommendationEngine(db=None, config=fallback_config)
             except Exception as e2:
                 logger.error(f"Fallback mode also failed: {e2}")
@@ -1232,32 +1187,27 @@ def validate_recommendation_request(request_data: Dict[str, Any]) -> Dict[str, A
         "warnings": []
     }
     
-    # Required fields
     required_fields = ['user_id']
     for field in required_fields:
         if field not in request_data:
             validation_result["errors"].append(f"Missing required field: {field}")
             validation_result["valid"] = False
     
-    # Optional but recommended fields
     recommended_fields = ['room_id', 'start_time', 'end_time', 'purpose']
     for field in recommended_fields:
         if field not in request_data:
             validation_result["warnings"].append(f"Missing recommended field: {field}")
     
-    # Validate data types
     if 'user_id' in request_data and not isinstance(request_data['user_id'], (str, int)):
         validation_result["errors"].append("user_id must be string or integer")
         validation_result["valid"] = False
     
-    # Validate time format if provided
     time_fields = ['start_time', 'end_time']
     for field in time_fields:
         if field in request_data:
             time_value = request_data[field]
             if isinstance(time_value, str):
                 try:
-                    # Try to parse as ISO format
                     datetime.fromisoformat(time_value.replace('Z', '+00:00'))
                 except ValueError:
                     validation_result["warnings"].append(f"{field} should be in ISO format")

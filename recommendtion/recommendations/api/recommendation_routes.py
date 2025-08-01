@@ -136,5 +136,4 @@ async def get_optimal_booking_times(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get optimal times: {str(e)}")
 
-# Keep the old variable name for backward compatibility
 recommendation_router = router

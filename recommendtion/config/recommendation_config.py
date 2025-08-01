@@ -1,10 +1,12 @@
-# config/recommendation_config.py 
+
 import os
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -13,47 +15,46 @@ class RecommendationConfig:
     """Configuration class for the recommendation system"""
     
     # Database Configuration
-    database_url: str = field(default_factory=lambda: os.getenv('DATABASE_URL', 'mysql+pymysql://root:Hashini04%2A@localhost:3306/hbanew'))
+    database_url: str = field(default_factory=lambda: os.getenv('DATABASE_URL'))
     
-    # Cache and Analytics Databases (SQLite for performance)
     cache_db_path: str = field(default_factory=lambda: os.getenv('CACHE_DB_PATH', 'cache/recommendations_cache.db'))
     vector_db_path: str = field(default_factory=lambda: os.getenv('VECTOR_DB_PATH', 'cache/vector_store.db'))
     analytics_db_path: str = field(default_factory=lambda: os.getenv('ANALYTICS_DB_PATH', './data/analytics/analytics.db'))
     
-    # Database Connection Pool Settings (for MySQL)
+    # Database Connection Pool Settings 
     mysql_pool_size: int = 5
     mysql_max_overflow: int = 10
     mysql_pool_timeout: int = 30
     mysql_pool_recycle: int = 3600  # 1 hour
-    mysql_echo: bool = False  # Set to True for SQL debugging
+    mysql_echo: bool = False  
    
-    # SQLite-specific cache settings (integrated from original config)
-    sqlite_cache_size_kb: int = 10000  # SQLite cache size (10MB)
-    sqlite_timeout: float = 30.0  # Connection timeout
-    enable_wal_mode: bool = True  # Write-Ahead Logging for better concurrency
-    sqlite_memory_limit_mb: int = 100  # Max size for in-memory SQLite cache
+    # SQLite-specific cache settings 
+    sqlite_cache_size_kb: int = 10000  
+    sqlite_timeout: float = 30.0  
+    enable_wal_mode: bool = True  
+    sqlite_memory_limit_mb: int = 100  
     
     # Cache Configuration
-    cache_ttl_default: int = 1800  # 30 minutes in seconds
-    cache_ttl_user_preferences: int = 3600  # 1 hour
-    cache_ttl_room_features: int = 7200  # 2 hours
-    cache_ttl_recommendations: int = 300  # 5 minutes
-    cache_max_size: int = 10000  # Maximum number of cached items
-    cache_cleanup_interval: int = 3600  # Cleanup every hour (seconds)
+    cache_ttl_default: int = 1800  
+    cache_ttl_user_preferences: int = 3600  
+    cache_ttl_room_features: int = 7200  
+    cache_ttl_recommendations: int = 300  
+    cache_max_size: int = 10000  
+    cache_cleanup_interval: int = 3600  
     
-    # Cache retention policies (from original config)
+    # Cache retention policies 
     recommendation_cache_ttl_hours: int = 24
-    user_profile_cache_ttl_hours: int = 168  # 1 week
-    room_similarity_cache_ttl_hours: int = 72  # 3 days
-    analytics_cache_ttl_hours: int = 48  # 2 days
+    user_profile_cache_ttl_hours: int = 168  
+    room_similarity_cache_ttl_hours: int = 72  
+    analytics_cache_ttl_hours: int = 48  
     
     # Cache optimization settings
-    enable_cache_compression: bool = True  # Compress cache data
-    enable_cache_statistics: bool = True  # Track cache performance
+    enable_cache_compression: bool = True  
+    enable_cache_statistics: bool = True  
     auto_vacuum_enabled: bool = True
-    lru_eviction_enabled: bool = True  # Least Recently Used eviction
-    max_cache_size_mb: int = 500  # Total cache size limit
-    use_file_fallback: bool = True  # Use files for large cache entries
+    lru_eviction_enabled: bool = True  
+    max_cache_size_mb: int = 500  
+    use_file_fallback: bool = True  
     
     # Recommendation Engine Configuration
     max_recommendations: int = field(default_factory=lambda: int(os.getenv('MAX_ALTERNATIVES', '10')))
@@ -64,34 +65,34 @@ class RecommendationConfig:
     
     # Vector Store Configuration
     max_search_results: int = 50
-    vector_index_refresh_interval: int = 3600  # 1 hour in seconds
+    vector_index_refresh_interval: int = 3600  
     vector_db_path_env: str = field(default_factory=lambda: os.getenv('VECTOR_DB_PATH', './data/embeddings'))
    
     # Feature Extraction Configuration (aligned with your FeatureExtractor)
     feature_vector_dimension: int = 128
-    user_feature_dimension: int = 100  # Matches your FeatureExtractor
-    room_feature_dimension: int = 80   # Matches your FeatureExtractor
+    user_feature_dimension: int = 100  
+    room_feature_dimension: int = 80   
     
     # Add missing embedding configuration
     embedding_model_name: str = field(default_factory=lambda: os.getenv('EMBEDDING_MODEL', 'sentence-transformers/all-MiniLM-L6-v2'))
-    embedding_dimension: int = 384  # Default dimension for all-MiniLM-L6-v2
-    vector_dimension: int = 384  # Same as embedding_dimension for compatibility
+    embedding_dimension: int = 384  
+    vector_dimension: int = 384  
     
     # Analytics Configuration
     analytics_window_days: int = field(default_factory=lambda: int(os.getenv('ANALYTICS_WINDOW_DAYS', '30')))
     min_booking_history: int = field(default_factory=lambda: int(os.getenv('MIN_BOOKINGS_FOR_PATTERN', '3')))
     
-    # Business Logic Configuration (from .env)
+    # Business Logic Configuration
     business_start_hour: int = field(default_factory=lambda: int(os.getenv('BUSINESS_START_HOUR', '7')))
     business_end_hour: int = field(default_factory=lambda: int(os.getenv('BUSINESS_END_HOUR', '21')))
     time_slot_minutes: int = field(default_factory=lambda: int(os.getenv('TIME_SLOT_MINUTES', '30')))
     
-    # Model Paths (from .env)
+    # Model Paths 
     clustering_model_path: str = field(default_factory=lambda: os.getenv('CLUSTERING_MODEL_PATH', './data/models/clustering_model.pkl'))
     user_embedding_path: str = field(default_factory=lambda: os.getenv('USER_EMBEDDING_PATH', './data/embeddings/users'))
     room_embedding_path: str = field(default_factory=lambda: os.getenv('ROOM_EMBEDDING_PATH', './data/embeddings/rooms'))
      
-    # Database Table Names (matching your models)
+    # Database Table Names 
     room_table_name: str = "mrbs_room"
     entry_table_name: str = "mrbs_entry" 
     repeat_table_name: str = "mrbs_repeat"
@@ -110,7 +111,7 @@ class RecommendationConfig:
     
     # Alternative Room Strategy Configuration
     alt_room_config: Dict[str, Any] = field(default_factory=lambda: {
-        'capacity_tolerance': 0.2,  # 20% tolerance for capacity differences
+        'capacity_tolerance': 0.2,  
         'equipment_match_weight': 0.4,
         'location_preference_weight': 0.3,
         'availability_weight': 0.3,
@@ -120,24 +121,24 @@ class RecommendationConfig:
     
     # Alternative Time Strategy Configuration
     alt_time_config: Dict[str, Any] = field(default_factory=lambda: {
-        'time_slot_duration': 30,  # minutes
-        'max_time_shift_hours': 4,  # Maximum hours to shift booking
-        'preferred_hours_start': 8,  # 8 AM
-        'preferred_hours_end': 18,  # 6 PM
-        'weekend_penalty': 0.2,  # Penalty for weekend suggestions
-        'early_morning_penalty': 0.3,  # Before 8 AM
-        'late_evening_penalty': 0.3,  # After 6 PM
-        'lunch_time_penalty': 0.1,  # 12-1 PM penalty
-        'same_day_bonus': 0.2,  # Bonus for same day alternatives
+        'time_slot_duration': 30,  
+        'max_time_shift_hours': 4,  
+        'preferred_hours_start': 8,  
+        'preferred_hours_end': 18,  
+        'weekend_penalty': 0.2,  
+        'early_morning_penalty': 0.3,  
+        'late_evening_penalty': 0.3,  
+        'lunch_time_penalty': 0.1,  
+        'same_day_bonus': 0.2,  
     })
     
     # Collaborative Filtering Configuration
     collaborative_config: Dict[str, Any] = field(default_factory=lambda: {
-        'min_common_bookings': 3,  # Minimum common bookings for user similarity
-        'user_similarity_threshold': 0.3,  # Minimum similarity score
-        'max_similar_users': 20,  # Maximum similar users to consider
-        'temporal_decay_factor': 0.95,  # Decay factor for older bookings
-        'booking_weight_threshold': 0.1,  # Minimum weight for booking influence
+        'min_common_bookings': 3,  
+        'user_similarity_threshold': 0.3,  
+        'max_similar_users': 20,  
+        'temporal_decay_factor': 0.95,  
+        'booking_weight_threshold': 0.1,  
     })
     
     # Content-Based Filtering Configuration
@@ -149,9 +150,9 @@ class RecommendationConfig:
             'amenities': 0.15,
             'room_quality': 0.10
         },
-        'categorical_similarity_weight': 0.6,  # Weight for exact matches
-        'numerical_similarity_weight': 0.4,   # Weight for numerical features
-        'location_radius_km': 0.5,  # Radius for location similarity
+        'categorical_similarity_weight': 0.6,  
+        'numerical_similarity_weight': 0.4,  
+        'location_radius_km': 0.5,  
     })
     
     # Feature flags
@@ -159,18 +160,18 @@ class RecommendationConfig:
     enable_smart_scheduling: bool = True
     enable_collaborative_filtering: bool = True
      
-    # Directory paths (updated from original config)
+    # Directory paths 
     cache_base_path: str = field(default_factory=lambda: os.getenv('CACHE_BASE_PATH', './data/cache'))
     main_db_path: str = field(default_factory=lambda: os.getenv('MAIN_DB_PATH', './data/recommendations.db'))
     chroma_persist_directory: Optional[str] = field(default_factory=lambda: os.getenv('CHROMA_PERSIST_DIRECTORY', './data/chroma_db'))
     
-    # Backup and recovery (from original config)
+    # Backup and recovery 
     auto_backup_enabled: bool = True
     backup_interval_hours: int = 24
     backup_retention_days: int = 7
     backup_path: str = field(default_factory=lambda: os.getenv('BACKUP_PATH', './data/backups'))
     
-    # Equipment and amenity types (matching your FeatureExtractor)
+    # Equipment and amenity types 
     equipment_types: List[str] = field(default_factory=lambda: [
         'projector', 'whiteboard', 'tv', 'microphone', 'camera',
         'computer', 'phone', 'speakers', 'screen', 'flip_chart'
@@ -181,9 +182,9 @@ class RecommendationConfig:
         'private', 'accessible', 'parking', 'kitchen', 'printer'
     ])
     
-    # Time slot configuration (matching your FeatureExtractor)
-    time_slot_start_hour: int = 6  # 6 AM
-    time_slot_end_hour: int = 22   # 10 PM
+    # Time slot configuration 
+    time_slot_start_hour: int = 6  
+    time_slot_end_hour: int = 22   
     time_slot_interval_minutes: int = 30
     
     # Environment-specific overrides
@@ -200,12 +201,12 @@ class RecommendationConfig:
     
     def _apply_development_config(self):
         """Apply development-specific settings"""
-        self.cache_ttl_default = 300  # 5 minutes for faster development
-        self.cache_ttl_recommendations = 60  # 1 minute
+        self.cache_ttl_default = 300  
+        self.cache_ttl_recommendations = 60  
         self.sqlite_memory_limit_mb = 50
         self.max_cache_size_mb = 200
         self.enable_cache_statistics = True
-        self.cache_cleanup_interval = 300  # 5 minutes
+        self.cache_cleanup_interval = 300  
         self.auto_backup_enabled = False
         self.mysql_echo = True 
         
@@ -213,7 +214,7 @@ class RecommendationConfig:
     
     def _apply_testing_config(self):
         """Apply testing-specific settings"""
-        self.cache_ttl_default = 10  # Very short for testing
+        self.cache_ttl_default = 10  
         self.cache_ttl_recommendations = 5
         self.sqlite_memory_limit_mb = 10
         self.max_cache_size_mb = 50
@@ -224,16 +225,16 @@ class RecommendationConfig:
         self.chroma_persist_directory = "./test_data/chroma_db"
         self.auto_backup_enabled = False
         self.enable_cache_statistics = False
-        self.cache_cleanup_interval = 60  # 1 minute
+        self.cache_cleanup_interval = 60  
         self.mysql_echo = False 
         
         logger.info("Applied testing configuration")
     
     def _apply_production_config(self):
         """Apply production-specific settings"""
-        self.cache_ttl_default = 1800  # 30 minutes
+        self.cache_ttl_default = 1800  
         self.sqlite_memory_limit_mb = 200
-        self.max_cache_size_mb = 1000  # 1GB
+        self.max_cache_size_mb = 1000  
         self.cache_base_path = "/app/data/cache"
         self.main_db_path = "/app/data/recommendations.db"
         self.cache_db_path = "/app/data/cache/cache.db"
@@ -243,17 +244,17 @@ class RecommendationConfig:
         self.backup_path = "/app/data/backups"
         self.auto_backup_enabled = True
         self.enable_cache_statistics = True
-        self.cache_cleanup_interval = 1800  # 30 minutes
+        self.cache_cleanup_interval = 1800  
         
         logger.info("Applied production configuration")
     
     def get_database_urls(self) -> Dict[str, str]:
         """Get database URLs for different purposes"""
         return {
-            "main": self.database_url,  # MySQL for actual data
-            "cache": f"sqlite:///{self.cache_db_path}",  # SQLite for caching
-            "analytics": f"sqlite:///{self.analytics_db_path}",  # SQLite for analytics
-            "vector": f"sqlite:///{self.vector_db_path}"  # SQLite for vector storage
+            "main": self.database_url,  
+            "cache": f"sqlite:///{self.cache_db_path}",  
+            "analytics": f"sqlite:///{self.analytics_db_path}",  
+            "vector": f"sqlite:///{self.vector_db_path}"  
         }
     
     def get_mysql_engine_kwargs(self) -> Dict[str, Any]:
@@ -264,7 +265,7 @@ class RecommendationConfig:
             "pool_timeout": self.mysql_pool_timeout,
             "pool_recycle": self.mysql_pool_recycle,
             "echo": self.mysql_echo,
-            "pool_pre_ping": True,  # Verify connections before use
+            "pool_pre_ping": True,  
         }
     
     def get_table_names(self) -> Dict[str, str]:
@@ -441,7 +442,6 @@ class RecommendationConfig:
                 "is very frequent, may impact performance"
             )
         
-        # Check feature dimensions
         if self.user_feature_dimension < 50:
             warnings.append(
                 f"user_feature_dimension ({self.user_feature_dimension}) "
@@ -472,7 +472,7 @@ class RecommendationConfig:
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'RecommendationConfig':
         """Create configuration from dictionary."""
-        # Filter only valid field names
+        
         valid_fields = {field.name for field in cls.__dataclass_fields__.values()}
         filtered_dict = {k: v for k, v in config_dict.items() if k in valid_fields}
         
@@ -489,7 +489,6 @@ class RecommendationConfig:
         )
 
 
-# Database Manager for handling multiple database connections
 class DatabaseManager:
     """Manager for handling multiple database connections"""
     
@@ -537,7 +536,6 @@ class DatabaseManager:
         self._engines.clear()
 
 
-# Configuration factory for backward compatibility and easy environment setup
 class ConfigFactory:
     """Factory to create configuration for different environments."""
     
@@ -547,7 +545,7 @@ class ConfigFactory:
         if environment is None:
             environment = os.getenv('ENVIRONMENT', 'development')
         
-        # Set environment variable for __post_init__ to pick up
+        
         original_env = os.getenv('ENVIRONMENT')
         os.environ['ENVIRONMENT'] = environment.lower()
         
@@ -555,7 +553,7 @@ class ConfigFactory:
             config = RecommendationConfig()
             return config
         finally:
-            # Restore original environment variable
+            
             if original_env is not None:
                 os.environ['ENVIRONMENT'] = original_env
             else:
@@ -579,7 +577,6 @@ class ConfigFactory:
 
 # Example usage and validation
 if __name__ == "__main__":
-    # Load configuration
     config = RecommendationConfig()
     print("Database URLs:")
     for name, url in config.get_database_urls().items():
@@ -588,13 +585,11 @@ if __name__ == "__main__":
     print(f"\nTable Names: {config.get_table_names()}")
     print(f"Business Hours: {config.get_business_hours_config()}")
     
-    # Test MySQL connection
     if config.validate_mysql_connection():
         print("✓ MySQL connection successful")
     else:
         print("✗ MySQL connection failed")
     
-    # Test database manager
     db_manager = DatabaseManager(config)
     try:
         main_session = db_manager.get_main_session()
@@ -603,11 +598,9 @@ if __name__ == "__main__":
         print(f"✗ Database manager failed: {e}")
     finally:
         db_manager.close_all()
-    
-    # Ensure directories exist
+   
     config.ensure_directories()
     
-    # Validate configuration
     warnings = config.validate_config()
     if warnings:
         print("Configuration warnings:")
@@ -616,13 +609,11 @@ if __name__ == "__main__":
     else:
         print("Configuration validated successfully!")
     
-    # Display key configuration sections
     print(f"\nCache configuration: {config.get_cache_config()}")
     print(f"TTL configuration: {config.get_ttl_config()}")
     print(f"Vector configuration: {config.get_vector_config()}")
     print(f"Feature configuration: {config.get_feature_config()}")
     
-    # Test different environments
     print(f"\n--- Environment Configurations ---")
     dev_config = ConfigFactory.development()
     print(f"Development cache TTL: {dev_config.cache_ttl_default}s")
@@ -633,7 +624,6 @@ if __name__ == "__main__":
     test_config = ConfigFactory.testing()
     print(f"Testing cache TTL: {test_config.cache_ttl_default}s")
     
-    # Show strategy configurations
     print(f"\n--- Strategy Configurations ---")
     for strategy in config.strategy_weights.keys():
         strategy_config = config.get_strategy_config(strategy)
