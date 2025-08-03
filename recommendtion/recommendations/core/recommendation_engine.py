@@ -270,6 +270,7 @@ class RecommendationEngine:
             room_name = request_data.get('room_id', '')
             start_time_str = request_data.get('start_time', '')
             end_time_str = request_data.get('end_time', '')
+            capacity_required = request_data.get('capacity', 1)
             
             try:
                 if 'T' in start_time_str:
@@ -280,8 +281,8 @@ class RecommendationEngine:
                     end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
             except (ValueError, TypeError):
                 logger.warning("Could not parse datetime strings, using current time")
-                start_time = datetime.now()
-                end_time = start_time + timedelta(hours=1)
+                start_time = start_time_str
+                end_time = end_time_str
             
             # Convert to Unix timestamps for database query
             start_timestamp = int(start_time.timestamp())
@@ -294,8 +295,14 @@ class RecommendationEngine:
             ).first()
             
             if not room:
-                logger.warning(f"Room {room_name} not found")
-                return []
+                alternative_rooms_query = alternative_rooms_query.order_by(
+                   func.abs(MRBSRoom.capacity - room.capacity)
+                )
+            else:
+                alternative_rooms_query = alternative_rooms_query.order_by(MRBSRoom.capacity)
+        
+            alternative_rooms = alternative_rooms_query.limit(10).all()
+        
             
             recommendations = []
             
@@ -370,8 +377,8 @@ class RecommendationEngine:
                     end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
             except (ValueError, TypeError):
                 logger.warning("Could not parse datetime strings, using current time")
-                start_time = datetime.now()
-                end_time = start_time + timedelta(hours=1)
+                start_time = start_time_str
+                end_time = end_time_str
             
             # Convert to Unix timestamps
             start_timestamp = int(start_time.timestamp())
@@ -472,7 +479,7 @@ class RecommendationEngine:
                     end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
             except (ValueError, TypeError):
                 logger.warning("Could not parse datetime strings, using current time")
-                start_time = datetime.now()
+                start_time = start_time_str
                 end_time = start_time + timedelta(hours=1)
             
             # Convert to Unix timestamps
@@ -480,7 +487,7 @@ class RecommendationEngine:
             end_timestamp = int(end_time.timestamp())
             
             # Get user's booking history (last 90 days)
-            history_start = datetime.now() - timedelta(days=90)
+            history_start = start_time_str - timedelta(days=90)
             history_start_ts = int(history_start.timestamp())
             
             # Find user's most frequently booked rooms
@@ -617,7 +624,7 @@ class RecommendationEngine:
                     end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
             except (ValueError, TypeError):
                 logger.warning("Could not parse datetime strings, using current time")
-                start_time = datetime.now()
+                start_time = start_time_str
                 end_time = start_time + timedelta(hours=1)
             
             recommendations = []
@@ -631,7 +638,7 @@ class RecommendationEngine:
             time_window_end = time_window_start + timedelta(hours=1)
             
             # Look at historical data for the same time slot
-            history_start = datetime.now() - timedelta(days=30)
+            history_start = start_time_str - timedelta(days=30)
             history_start_ts = int(history_start.timestamp())
             
             # Calculate utilization rates for each room at this time slot
@@ -760,12 +767,14 @@ class RecommendationEngine:
             }
         ]
         
-    def _verify_database_connection(self) -> None:
+    def _verify_database_connection(self, request_data: Dict[str, Any]) -> None:
         """Verify MySQL database connection and required tables exist"""
         if not self.db:
             logger.warning("No database session available, skipping verification")
             return
             
+        start_time = request_data.get('start_time', '')
+        
         try:
             self.db.execute(text("SELECT 1")).fetchone()
             logger.info("✓ MySQL database connection successful")
@@ -788,7 +797,7 @@ class RecommendationEngine:
             
             try:
                 recent_bookings = self.db.query(MRBSEntry).filter(
-                    MRBSEntry.start_time >= int((datetime.now() - timedelta(days=7)).timestamp())
+                    MRBSEntry.start_time >= int((start_time - timedelta(days=7)).timestamp())
                 ).count()
                 
                 logger.info(f"✓ MySQL database accessible. Found {recent_bookings} recent bookings")
@@ -893,7 +902,7 @@ class RecommendationEngine:
             logger.error(f"Error checking room availability: {e}")
             return False
     
-    def get_user_booking_history(self, user_id: str, days: int = 30) -> List[Dict[str, Any]]:
+    def get_user_booking_history(self, request_data: Dict[str, Any],user_id: str, days: int = 30,) -> List[Dict[str, Any]]:
         """
         Get user's booking history from the database
         
@@ -907,8 +916,12 @@ class RecommendationEngine:
         if not self.db:
             return []
         
+        start_time_str = request_data.get('start_time', '')
+        end_time_str = request_data.get('end_time', '')
+        capacity_required = request_data.get('capacity', 1)
+        
         try:
-            start_date = datetime.now() - timedelta(days=days)
+            start_date = start_time_str - timedelta(days=days)
             start_timestamp = int(start_date.timestamp())
             
             bookings = self.db.query(
@@ -949,7 +962,7 @@ class RecommendationEngine:
             logger.error(f"Error retrieving user booking history: {e}")
             return []
     
-    def get_room_utilization_stats(self, room_name: str = None, days: int = 30) -> Dict[str, Any]:
+    def get_room_utilization_stats(self,request_data: Dict[str, Any], room_name: str = None, days: int = 30) -> Dict[str, Any]:
         """
         Get room utilization statistics from the database
         
@@ -963,8 +976,12 @@ class RecommendationEngine:
         if not self.db:
             return {}
         
+        start_time_str = request_data.get('start_time', '')
+        end_time_str = request_data.get('end_time', '')
+        capacity_required = request_data.get('capacity', 1)
+        
         try:
-            start_date = datetime.now() - timedelta(days=days)
+            start_date = start_time_str  - timedelta(days=days)
             start_timestamp = int(start_date.timestamp())
             
             query = self.db.query(
