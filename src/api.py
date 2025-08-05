@@ -2,16 +2,23 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from src.deepseek_llm import DeepSeekLLM
 from src.database import get_db
-from src.availability_logic import check_availability, add_booking, check_available_slotes
+from src.availability_logic import check_availability, add_booking, check_available_slotes,book_recommendation_directly
 import json
 import re
 from src.entity_extraction import extract_entities
+from typing import Dict, Any, Optional, List
 
 router = APIRouter()
 
 class QuestionRequest(BaseModel):
     session_id: str
     question: str
+
+class RecommendationBookingRequest(BaseModel):
+    session_id: str
+    recommendation: Dict[str, Any]
+    created_by: str
+
 
 def get_missing_params(params: dict, required_fields: list[str]) -> list[str]:
     return [f for f in required_fields if f not in params or not params[f]]
@@ -185,3 +192,18 @@ Respond in **only JSON format**, without explanations.
         return {"status": "success", "message": f"Booking {params['booking_id']} cancelled."}
 
     return {"status": "error", "message": "Unhandled action."}
+
+@router.post("/book_recommendation/")
+async def book_recommendation(request: RecommendationBookingRequest, db=Depends(get_db)):
+    try:
+        result = book_recommendation_directly(
+            recommendation=request.recommendation,
+            created_by=request.created_by,
+            db=db
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to book recommendation: {e}")
+

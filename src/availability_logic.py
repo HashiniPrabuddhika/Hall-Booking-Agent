@@ -13,7 +13,6 @@ config = RecommendationConfig()
 recommendation_engine = RecommendationEngine(config=config)
 
 def get_room_recommendations(room_name: str, date: str, start_time: str, end_time: str, db: Session):
-    """Get room recommendations when requested room is not found"""
     try:
         start_dt = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
         end_dt = datetime.strptime(f"{date} {end_time}", "%Y-%m-%d %H:%M")
@@ -188,6 +187,67 @@ def add_booking(room_name: str, date: str, start_time: str, end_time: str, creat
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
     
+    
+def book_recommendation_directly(recommendation: Dict[str, Any], created_by: str, db: Session):
+   
+    try:
+        # Extract suggestion data from recommendation
+        suggestion = recommendation.get('suggestion', {})
+        if not suggestion:
+            raise HTTPException(status_code=400, detail="Invalid recommendation: missing suggestion data")
+        
+        room_name = suggestion.get('room_name')
+        start_time_str = suggestion.get('start_time')
+        end_time_str = suggestion.get('end_time')
+        
+        if not all([room_name, start_time_str, end_time_str]):
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid recommendation: missing room_name, start_time, or end_time"
+            )
+        
+        # Parse the datetime strings
+        try:
+            start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+        except ValueError:
+            # Try alternative parsing if ISO format fails
+            try:
+                start_dt = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
+                end_dt = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid datetime format in recommendation: {e}")
+        
+        date = start_dt.strftime("%Y-%m-%d")
+        start_time = start_dt.strftime("%H:%M") 
+        end_time = end_dt.strftime("%H:%M")
+        
+        print(f"Booking recommendation: {room_name} on {date} from {start_time} to {end_time}")
+        
+        result = add_booking(
+            room_name=room_name,
+            date=date,
+            start_time=start_time,
+            end_time=end_time,
+            created_by=created_by,
+            db=db,
+            validate_availability=False  
+        )
+        
+        result['recommendation_type'] = recommendation.get('type', 'unknown')
+        result['recommendation_score'] = recommendation.get('score', 0)
+        result['recommendation_reason'] = recommendation.get('reason', '')
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error booking recommendation: {e}")
+ 
+ 
 def check_available_slotes(room_name: str, date: str, start_time: str, end_time: str, db: Session):
     # alternative slotes
     print(f"Checking availability for room: {room_name}")

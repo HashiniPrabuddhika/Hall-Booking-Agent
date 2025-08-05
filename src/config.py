@@ -5,4 +5,4 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration settings
-DEEPSEEK_API_KEY = os.getenv("OPENAI_API_KEY")
+DEEPSEEK_API_KEY = os.getenv("OPENAI_API_KEY2")
